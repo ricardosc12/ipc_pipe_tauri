@@ -16,7 +16,9 @@ use winapi::um::winnt::{HANDLE, LONG, LPCSTR};
 const BUFFER_SIZE: u32 = 1024;
 const MAX_CLIENTS: u32 = 2;
 
-pub fn named_pipe(counter: Arc<Mutex<i32>>) {
+pub type CallFunction = fn(String);
+
+pub fn named_pipe(counter: Arc<Mutex<i32>>, caller: CallFunction) {
     let num_clients = Arc::new(AtomicU32::new(0));
     let mut handles = vec![];
 
@@ -59,7 +61,8 @@ pub fn named_pipe(counter: Arc<Mutex<i32>>) {
                 let thread_args = PipeThreadArgs {
                     h_pipe: h_pipe_clone,
                     num_clients: num_clients_clone,
-                    counter: Arc::clone(&counter)
+                    counter: Arc::clone(&counter),
+                    call: caller
                 };
 
                 let thread_handle = thread::spawn(move || {
@@ -75,7 +78,8 @@ pub fn named_pipe(counter: Arc<Mutex<i32>>) {
 struct PipeThreadArgs {
     h_pipe: HANDLE,
     num_clients: Arc<AtomicU32>,
-    counter: Arc<Mutex<i32>>
+    counter: Arc<Mutex<i32>>,
+    call: CallFunction,
 }
 
 unsafe impl Send for PipeThreadArgs {}
@@ -101,7 +105,7 @@ fn message_thread(lp_parameter: LPVOID) -> LONG {
             {
                 let received_message = String::from_utf8_lossy(&buffer[..bytes_read as usize]);
                 println!("Received: {}", received_message);
-
+                ((*args).call)(received_message.to_string());
                 if received_message.trim() == "exit" {
                     break;
                 }
@@ -123,7 +127,7 @@ fn message_thread(lp_parameter: LPVOID) -> LONG {
 
         println!("Desconectando pipe !");
         num_clients.fetch_sub(1, Ordering::SeqCst);
-        
+
         if let Ok(mut count) = (*args).counter.lock() {
             *count -= 1;
         }
