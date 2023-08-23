@@ -1,7 +1,7 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 
-import App from "./App";
+import Game from "./Game";
 import './styles.css'
 
-render(() => <App />, document.getElementById("root") as HTMLElement);
+render(() => <Game />, document.getElementById("root") as HTMLElement);
