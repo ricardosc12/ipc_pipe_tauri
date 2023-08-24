@@ -27,10 +27,17 @@
     margin: 5px;
 }
 
-.player {
+.player, .goal {
     display: flex;
     width: 15px;
     height: 15px;
     background-color: var(--color);
     border-radius: 15px;
+}
+
+.goal {
+    width: 18px;
+    height: 18px;
+    border-radius: 18px;
+    background-color: yellow;
 }

@@ -3,34 +3,50 @@ import { For, createEffect, createSignal, onMount } from "solid-js";
 import { invoke } from "@tauri-apps/api/tauri";
 import style from './style.module.css'
 
+const playerColor = (id: number) => {
+	let colors: any = {
+		0: "red",
+		1: "blue",
+		2: "green",
+		4: "yellow"
+	}
+	return colors[id] ? colors[id] : "red"
+}
+
+function checkEqualPlayer(newPlayer: Array<Player>, oldPlayer: Array<Player>) {
+	return JSON.stringify(newPlayer) == JSON.stringify(oldPlayer)
+}
+
 class Player {
 	x: number;
 	y: number;
-	color: string;
-	local: HTMLDivElement | void;
-	constructor(x: number, y: number, color: string) {
+	id: number;
+	name: string;
+	constructor(x: number, y: number, id: number) {
 		this.x = x;
 		this.y = y;
-		this.color = color;
-		this.local = undefined;
+		this.id = id;
+		this.name = `Player ${id}`;
 	}
 	moveUp() { this.y++; }
 	moveDown() { this.y--; }
 	moveRight() { this.x++; }
 	moveLeft() { this.x--; }
 	render(map: HTMLDivElement) {
-		if (this.local) this.local.remove()
-		const newLocal = document.createElement("DIV")
-		newLocal.className = style.player
-		newLocal.style.setProperty("--color", this.color)
+		if (!map) return
 		const rowMap = map.querySelector(`[aria-rowindex="${this.x}"]`)
 		const local = rowMap?.querySelector(`[aria-colindex="${this.y}"]`)
+		document.getElementById(String(this.id))?.remove()
+		const newLocal = document.createElement("DIV")
+		newLocal.className = style.player
+		newLocal.id = String(this.id);
+		newLocal.role = "player";
+		newLocal.style.setProperty("--color", playerColor(this.id))
 		local?.appendChild(newLocal)
-		this.local = newLocal as HTMLDivElement
 	}
 }
 
-class Goal extends Player { }
+// class Goal extends Player { }
 
 interface RustReponse {
 	players: Array<Player>
@@ -38,44 +54,55 @@ interface RustReponse {
 
 function Game() {
 
-	const [players, setPlayers] = createSignal<Array<Player>>([])
+	const [players, setPlayers] = createSignal<Array<Player>>([], { equals: checkEqualPlayer })
 	const [dimensions, setDimensions] = createSignal([0, 0])
+	const [goal, setGoal] = createSignal<Array<number>>()
 
 	let map: any;
 
-	async function greet() {
-		// Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-		const result: RustReponse = await invoke("greet", { teste: "Hello Server !" })
-
-		console.log(result)
-
-		setPlayers(result.players)
-	}
-
 	onMount(() => {
 		(async () => {
-			const dimensions: Array<number> = await invoke("init")
-			setDimensions(dimensions)
+			const map: any = await invoke("init")
+			setDimensions(map.dimensions)
+			setGoal(map.goal)
 		})();
+
+		setInterval(() => {
+			(async () => {
+				const result: RustReponse = await invoke("greet")
+
+				const resultPlayers: Array<Player> = result.players.map(item => {
+					return new Player(item.x, item.y, item.id)
+				})
+
+				setPlayers(resultPlayers)
+			})();
+		})
 	})
 
-	// setTimeout(() => {
-	// 	const player = new Player(0, 1, "red")
-	// 	const player2 = new Player(0, 1, "blue")
-	// 	player.render(map)
-	// 	player2.render(map)
-
-	// }, 1000);
+	createEffect(() => {
+		let _players = players()
+		let setPlayers = new Set()
+		_players.forEach(player => {
+			setPlayers.add(Number(player.id))
+			player.render(map)
+		})
+		let renderedPlayers = (map as HTMLElement).querySelectorAll("[role='player']")
+		renderedPlayers.forEach(player => {
+			if (!setPlayers.has(Number(player.id))) player.remove()
+		})
+	})
 
 	return (
 		<div ref={map} class={style.root}>
-			<button onclick={greet}>GET PLAYERS</button>
 			<For each={Array.from(Array(dimensions()[0]))}>
-				{(_, index) => (
-					<div aria-rowindex={index()} class={style.line}>
+				{(_, indexX) => (
+					<div aria-rowindex={indexX()} class={style.line}>
 						<For each={Array.from(Array(dimensions()[1]))}>
-							{(_, index) => (
-								<div aria-colindex={index()} class={style.column}></div>
+							{(_, indexY) => (
+								<div aria-colindex={indexY()} class={style.column}>
+									{(goal()?.[0]==indexX() && goal()?.[1] == indexY())?<div class={style.goal}></div>:''}
+								</div>
 							)}
 						</For>
 					</div>
