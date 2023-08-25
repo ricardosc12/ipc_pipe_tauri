@@ -1,6 +1,8 @@
 import win32pipe
 import win32file
 
+print(2//2.3)
+
 pipe = win32file.CreateFile(
     r'\\.\pipe\my_bidirectional_pipe',  # Nome do pipe
     win32file.GENERIC_READ | win32file.GENERIC_WRITE,

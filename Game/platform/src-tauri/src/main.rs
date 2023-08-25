@@ -33,19 +33,28 @@ pub struct Map {
 }
 
 pub static MAP: Map = Map {
-    dimensions: [6, 3],
-    goal: [5, 1],
+    dimensions: [20, 10],
+    goal: [19, 9],
 };
 
 #[tauri::command]
 fn init() -> Map {
     MAP
 }
+fn calculate_distance(position1: [i32; 2], position2: [i32; 2]) -> f64 {
+    (((position2[0] - position1[0]).abs() + (position2[1] - position1[1]).abs()) as f64).sqrt()
+}
 
 fn player_controller(input: String, player: Arc<Mutex<Player>>) -> String {
     let mut player_lock = player.lock().unwrap();
 
-    println!("Input: {} from Player {}", input, player_lock.id);
+    let last_distance =
+        calculate_distance([MAP.goal[0], MAP.goal[1]], [player_lock.x, player_lock.y]);
+
+    if input == "reset" {
+        player_lock.x = 0;
+        player_lock.y = 0;
+    }
     if input == "r" && player_lock.x < MAP.dimensions[0] - 1 {
         player_lock.x += 1;
     }
@@ -59,7 +68,20 @@ fn player_controller(input: String, player: Arc<Mutex<Player>>) -> String {
         player_lock.y += 1;
     }
 
-    format!("Message from Player: {}", player_lock.id).to_string()
+    let state = player_lock.y * MAP.dimensions[0] + player_lock.x;
+
+    let new_distance =
+        calculate_distance([MAP.goal[0], MAP.goal[1]], [player_lock.x, player_lock.y]);
+
+    let reward = if new_distance < last_distance {
+        1
+    } else if new_distance == last_distance {
+        0
+    } else {
+        -1
+    };
+
+    format!("{}:{}", state, reward).to_string()
 }
 
 fn main() {
